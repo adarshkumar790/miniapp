@@ -1,7 +1,7 @@
 import axios from "axios";
 import { Telegraf } from "telegraf";
-import crypto from "crypto";
 import express from "express";
+import { validate } from "@telegram-apps/init-data-node";
 
 const BOT_TOKEN = "7791923708:AAHwxgDzjfe_IlbW49t2wN1KLWJocxEWAtA";
 const bot = new Telegraf(BOT_TOKEN);
@@ -13,23 +13,21 @@ console.log("Bot is started");
 
 bot.start((ctx) => {
     const user = ctx.from;
+
     const initDataRaw = `id=${user.id}&first_name=${user.first_name}&last_name=${user.last_name || ""}&username=${user.username || ""}&language_code=${user.language_code}&is_premium=${user.is_premium || false}`;
 
-    
-    const isVerified = verifyTelegramAuth(initDataRaw);
-
-    if (isVerified) {
+    try {
+        validateInitData(initDataRaw);
         console.log(`User Verified: ${user.first_name} (ID: ${user.id})`);
         ctx.reply(`Hello, ${user.first_name}! You are verified`);
-    } else {
-        console.log(`Verification Failed for User: ${user.first_name} (ID: ${user.id})`);
+    } catch (error) {
+        console.error(`Verification Failed:`, error);
         ctx.reply(`Hello, ${user.first_name}! Verification failed`);
     }
 });
 
 
 bot.launch();
-
 
 const API_URL = `https://api.telegram.org/bot${BOT_TOKEN}/setChatMenuButton`;
 const setWebAppButton = async () => {
@@ -49,26 +47,10 @@ const setWebAppButton = async () => {
 
 setWebAppButton();
 
+const validateInitData = (initDataRaw: string) => {
+    validate(initDataRaw, BOT_TOKEN);
+};
 
-function verifyTelegramAuth(initDataRaw: string): boolean {
-    const params = new URLSearchParams(initDataRaw);
-    const hash = params.get("hash");
-    if (!hash) return false;
+export default validateInitData;
 
-    params.delete("hash");
-
-    const dataCheckString = Array.from(params.entries())
-        .map(([key, value]) => `${key}=${value}`)
-        .sort()
-        .join("\n");
-
-    const secretKey = crypto.createHmac("sha256", Buffer.from(BOT_TOKEN, "utf-8"))
-        .digest();
-
-    const computedHash = crypto.createHmac("sha256", secretKey)
-        .update(dataCheckString)
-        .digest("hex");
-
-    return computedHash === hash;
-}
 
